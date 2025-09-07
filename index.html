@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Times Table Arena</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 40px; background: #f5f5f5; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
+    h1 { color: #333; }
+    button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
+    .feedback { margin-top: 15px; font-weight: bold; }
+    .correct { color: green; }
+    .wrong { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Times Table Arena (2–10)</h1>
+  <div class="card">
+    <p id="question">Press "New Question" to start!</p>
+    <input type="number" id="answer" placeholder="Your answer">
+    <div>
+      <button onclick="checkAnswer()">Check</button>
+      <button onclick="newQuestion()">New Question</button>
+    </div>
+    <p id="feedback" class="feedback"></p>
+    <p id="score">Score: 0 | Streak: 0</p>
+  </div>
+
+<script>
+  let a, b, correct;
+  let score = 0, streak = 0;
+
+  function newQuestion() {
+    a = Math.floor(Math.random() * 9) + 2; // 2–10
+    b = Math.floor(Math.random() * 9) + 2;
+    correct = a * b;
+    document.getElementById("question").textContent = `${a} × ${b} = ?`;
+    document.getElementById("answer").value = "";
+    document.getElementById("feedback").textContent = "";
+  }
+
+  function checkAnswer() {
+    const ans = Number(document.getElementById("answer").value);
+    if (ans === correct) {
+      score++; streak++;
+      document.getElementById("feedback").textContent = "✅ Correct!";
+      document.getElementById("feedback").className = "feedback correct";
+      newQuestion();
+    } else {
+      streak = 0;
+      document.getElementById("feedback").textContent = `❌ Not quite. The answer was ${correct}.`;
+      document.getElementById("feedback").className = "feedback wrong";
+    }
+    document.getElementById("score").textContent = `Score: ${score} | Streak: ${streak}`;
+  }
+</script>
+</body>
+</html>
