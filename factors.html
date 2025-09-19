@@ -11,13 +11,13 @@
   .wrap { max-width: 900px; margin: 32px auto; padding: 0 16px; }
   header { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px;}
   h1 { font-size: clamp(22px, 4vw, 30px); margin:0; }
-  .lang { display:flex; gap:8px; align-items:center; }
+  .lang { display:flex; gap:10px; align-items:center; }
   .toggle { border:1px solid #d1d5db; background:#fff; padding:6px 10px; border-radius:10px; cursor:pointer; }
   .card { background:var(--card); border-radius:14px; box-shadow:0 8px 24px rgba(31,42,68,.08); padding:18px; }
   .hud { display:flex; gap:12px; flex-wrap:wrap; align-items:center; color:var(--muted); font-weight:600; }
   .badge { background:#eef2ff; color:#3730a3; padding:6px 10px; border-radius:999px; }
   .question { font-size: clamp(22px, 4.5vw, 34px); text-align:center; margin:10px 0 0; }
-  .answerrow { display:flex; gap:10px; justify-content:center; align-items:center; margin-top:8px; }
+  .answerrow { display:flex; gap:10px; justify-content:center; align-items:center; margin-top:8px; flex-wrap:wrap; }
   input[type="number"] { width:180px; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:18px; }
   .btn { background:var(--brand); color:white; border:none; border-radius:10px; padding:10px 14px; font-size:16px; cursor:pointer; }
   .btn.secondary { background:#e5e7eb; color:#111827; }
@@ -34,7 +34,7 @@
       <div class="lang">
         <a class="home" href="./index.html">← Home</a>
         <span id="langLabel">Language:</span>
-        <button class="toggle" id="langToggle">ES</button>
+        <button class="toggle" id="langToggle" type="button">ES</button>
       </div>
     </header>
 
@@ -49,9 +49,9 @@
       <div class="question" id="question">Press Start to begin a 10-question round.</div>
       <div class="answerrow">
         <input type="number" id="answer" placeholder="Your answer" />
-        <button class="btn" id="check">Check</button>
-        <button class="btn secondary" id="next">Skip</button>
-        <button class="btn" id="start">Start (10)</button>
+        <button class="btn" id="check" type="button">Check</button>
+        <button class="btn secondary" id="next" type="button">Skip</button>
+        <button class="btn" id="start" type="button">Start (10)</button>
       </div>
       <div class="feedback" id="feedback"></div>
       <div class="hint" id="hint"></div>
@@ -59,6 +59,7 @@
   </div>
 
 <script>
+document.addEventListener("DOMContentLoaded", () => {
   // ---- i18n ----
   const STR = {
     en: {
@@ -76,7 +77,7 @@
       q_gcd: (a,b)=> `What is the GCF (greatest common factor) of ${a} and ${b}?`,
       q_lcm: (a,b)=> `What is the LCM (least common multiple) of ${a} and ${b}?`,
       hint_gcd: (a,b,f)=> `Hint: common factors of ${a} & ${b}: ${f.join(" • ")}`,
-      hint_lcm: (a,b,l)=> `Hint: lcm × gcf = ${a}×${b} = ${a*b}; try lcm = ${(a*b)}/gcf`
+      hint_lcm: (a,b)=> `Hint: lcm × gcf = ${a}×${b} = ${a*b}; try lcm = ${(a*b)}/gcf`
     },
     es: {
       title: "Factores y Múltiplos",
@@ -99,50 +100,49 @@
   let lang = localStorage.getItem("tta_lang") || "en";
   const T = (k,...p)=> typeof STR[lang][k]==="function" ? STR[lang][k](...p) : STR[lang][k];
 
-  // ---- helpers ----
+  // ---- element helpers ----
   const $ = s => document.querySelector(s);
+  const title = $("#title"), langLabel=$("#langLabel"), langToggle=$("#langToggle");
+  const bestScore=$("#bestScore"), streakEl=$("#streak"), scoreEl=$("#score"), qIndexEl=$("#qIndex");
+  const question=$("#question"), answer=$("#answer"), checkBtn=$("#check"), nextBtn=$("#next"), startBtn=$("#start");
+  const feedback=$("#feedback"), hint=$("#hint");
+
+  if(!title || !startBtn){ console.error("DOM not ready"); return; }
+
+  // ---- state ----
   let score=0, streak=0, best=0, qIndex=0, mode="idle";
   const STORAGE_KEY="factors_progress_v1";
 
+  const factors = n => Array.from({length:n},(_,i)=>i+1).filter(k=>n%k===0);
+  const gcd = (a,b)=> b? gcd(b,a%b):a;
+  const lcm = (a,b)=> a/gcd(a,b)*b;
+
+  let qa=null; // {type,a,b,answer}
+
   function applyLang(){
     document.documentElement.lang = lang;
-    $("#title").textContent = T("title");
-    $("#langLabel").textContent = T("language");
-    $("#start").textContent = T("start");
-    $("#check").textContent = T("check");
-    $("#next").textContent = T("skip");
-    $("#badgeBest").childNodes[0].textContent = T("best")+": ";
-    $("#badgeStreak").childNodes[0].textContent = T("streak")+": ";
-    $("#badgeScore").childNodes[0].textContent = T("score")+": ";
-    $("#langToggle").textContent = lang==="en" ? "ES" : "EN";
+    title.textContent = T("title");
+    langLabel.textContent = T("language");
+    startBtn.textContent = T("start");
+    checkBtn.textContent = T("check");
+    nextBtn.textContent = T("skip");
+    // update HUD labels
+    // (text before the number inside badges)
+    document.querySelector("#badgeBest").childNodes[0].textContent = T("best")+": ";
+    document.querySelector("#badgeStreak").childNodes[0].textContent = T("streak")+": ";
+    document.querySelector("#badgeScore").childNodes[0].textContent = T("score")+": ";
+    langToggle.textContent = lang==="en" ? "ES" : "EN";
   }
-
-  $("#langToggle").addEventListener("click",()=>{
-    lang = (lang==="en"?"es":"en");
-    localStorage.setItem("tta_lang", lang);
-    applyLang();
-    // re-render question if mid-round
-    if(mode!=="idle") renderQuestion();
-  });
 
   // load progress
   (function(){
     const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
     if(d.best) best=d.best;
-    $("#bestScore").textContent = best;
+    bestScore.textContent = best;
     applyLang();
   })();
 
-  // math utils
-  const factors = n => Array.from({length:n},(_,i)=>i+1).filter(k=>n%k===0);
-  const gcd = (a,b)=> b? gcd(b,a%b):a;
-  const lcm = (a,b)=> a/gcd(a,b)*b;
-
-  // question state
-  let qa=null; // {type, a, b, answer}
-
   function newNumbers(){
-    // moderate range with shared factors to keep it teachable
     const pool=[6,8,9,10,12,14,15,16,18,20,21,24,27,28,30,32,36,40,42,45,48,54,56,60];
     const a = pool[Math.floor(Math.random()*pool.length)];
     const b = pool[Math.floor(Math.random()*pool.length)];
@@ -150,62 +150,4 @@
   }
 
   function makeQuestion(){
-    const [a,b]=newNumbers();
-    if(Math.random()<0.5){
-      qa = { type:"gcd", a,b, answer:gcd(a,b) };
-    }else{
-      qa = { type:"lcm", a,b, answer:lcm(a,b) };
-    }
-  }
-
-  function renderQuestion(){
-    if(!qa) makeQuestion();
-    if(qa.type==="gcd"){
-      $("#question").textContent = T("q_gcd", qa.a, qa.b);
-    }else{
-      $("#question").textContent = T("q_lcm", qa.a, qa.b);
-    }
-    $("#feedback").textContent = "";
-    $("#feedback").className = "feedback";
-    $("#hint").textContent = "";
-    $("#answer").value = "";
-    $("#answer").focus();
-    $("#qIndex").textContent = qIndex;
-  }
-
-  function startRound(){
-    mode="play"; score=0; streak=0; qIndex=1;
-    updateHUD();
-    qa=null; renderQuestion();
-  }
-
-  function endRound(){
-    mode="idle";
-    if(score>best){ best=score; localStorage.setItem(STORAGE_KEY, JSON.stringify({best})); }
-    updateHUD();
-    $("#feedback").textContent = T("roundDone", score);
-    $("#feedback").className = "feedback";
-  }
-
-  function updateHUD(){
-    $("#score").textContent = score;
-    $("#streak").textContent = streak;
-    $("#bestScore").textContent = best;
-    $("#qIndex").textContent = qIndex;
-  }
-
-  $("#start").addEventListener("click", startRound);
-  $("#next").addEventListener("click", ()=>{
-    if(mode!=="play") return;
-    if(qIndex>=10) endRound();
-    else { qIndex++; qa=null; renderQuestion(); }
-  });
-  $("#check").addEventListener("click", check);
-  $("#answer").addEventListener("keydown", e=>{ if(e.key==="Enter") check(); });
-
-  function check(){
-    if(mode!=="play") { startRound(); return; }
-    const val = Number($("#answer").value);
-    if(!Number.isFinite(val)) return;
-
-    if(val===qa.answ
+    c
